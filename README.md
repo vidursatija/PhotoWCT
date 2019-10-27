@@ -28,3 +28,10 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 
 ## Results
 TO BE UPDATED
+
+## TODO
+1. Affine Matting
+2. Add results
+3. Upload trained files
+4. Make training easier
+5. Make running easier

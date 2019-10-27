@@ -12,14 +12,16 @@ import mat_transforms
 import argparse
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--decoder', type=str, default=None,
+parser.add_argument('--decoders', type=str, default=None,
                     help='Decoder path')
 parser.add_argument('--x', type=int, default=2,
-                    help='Num layers')
+                    help='Num layers to transform')
 parser.add_argument('--style', type=str, default=None,
                     help='Style image path')
 parser.add_argument('--content', type=str, default=None,
                     help='Content image path')
+parser.add_argument('--output', type=str, default='stylized.png',
+                    help='Output image path')
 
 args = parser.parse_args()
 
@@ -48,35 +50,39 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 print(device)
 
-encoder = cvgg16.vgg16_enc(x=args.x, pretrained=True).to(device)
-decoder = cvgg16.vgg16_dec(x=args.x, pretrained=True, pretrained_path=args.decoder).to(device)
+decoder_paths = args.decoder.split(",")
+
+encoders = [cvgg16.vgg16_enc(x=j+1, pretrained=True).to(device) for j in range(args.x)]
+decoders = [cvgg16.vgg16_dec(x=j+1, pretrained=True, pretrained_path=decoder_paths[j]).to(device) for j in range(args.x)]
+# encoder = cvgg16.vgg16_enc(x=args.x, pretrained=True).to(device)
+# decoder = cvgg16.vgg16_dec(x=args.x, pretrained=True, pretrained_path=args.decoder).to(device)
 
 content_image = image_loader(transform, args.content).to(device)
 style_image = image_loader(transform, args.style).to(device)
 
-z_content, maxpool_content = encoder(content_image) # (1, C, H, W)
-z_style, _ = encoder(style_image) # (1, C, H, W)
+for j in range(args.x, 0, -1):
+    z_content, maxpool_content = encoders[j-1](content_image) # (1, C, H, W)
+    z_style, _ = encoders[j-1](style_image) # (1, C, H, W)
 
-n_channels = z_content.size()[1] # C
-n_1 = z_content.size()[2] # H
-n_2 = z_content.size()[3] # W
+    n_channels = z_content.size()[1] # C
+    n_1 = z_content.size()[2] # H
+    n_2 = z_content.size()[3] # W
 
-z_content = z_content.squeeze(0).view([n_channels, -1]) # (C, HW)
-z_style = z_style.squeeze(0).view([n_channels, -1]) # (C, HW)
+    z_content = z_content.squeeze(0).view([n_channels, -1]) # (C, HW)
+    z_style = z_style.squeeze(0).view([n_channels, -1]) # (C, HW)
 
-white_content = mat_transforms.whitening(z_content.cpu().detach().numpy()) # (C, HW)
-color_content = mat_transforms.colouring(z_style.cpu().detach().numpy(), white_content) # (C, HW)
+    white_content = mat_transforms.whitening(z_content) # (C, HW)
+    color_content = mat_transforms.colouring(z_style, white_content) # (C, HW)
 
-alpha = 0.6
-color_content = alpha*color_content + (1.-alpha)*z_content.cpu().detach().numpy()
+    alpha = 0.6
+    color_content = alpha*color_content + (1.-alpha)*z_content
 
-color_content = transforms.ToTensor()(color_content)
-color_content = color_content.view([n_channels, n_1, n_2]) # (C, H, W)
-color_content = color_content.unsqueeze(0) # (1, C, H, W)
+    color_content = color_content.view([1, n_channels, n_1, n_2]) # (1, C, H, W)
+    # color_content = color_content.unsqueeze(0) # (1, C, H, W)
 
-inputs_hat = decoder(color_content.to(device), maxpool_content)
+    content_image = decoders[j-1](color_content.to(device), maxpool_content) # (1, C, H, W)
 
-new_image = inputs_hat.squeeze(0) # (C, H, W)
+new_image = content_image.squeeze(0) # (C, H, W)
 new_image = reverse_normalize(new_image) # (C, H, W)
 new_image = torch.transpose(new_image, 0, 1) # (H, C, W)
 new_image = torch.transpose(new_image, 1, 2) # (H, W, C)
@@ -84,4 +90,4 @@ new_image = torch.transpose(new_image, 1, 2) # (H, W, C)
 new_image = np.maximum(np.minimum(new_image.cpu().detach().numpy(), 1.0), 0.0)
 
 result = Image.fromarray((new_image * 255).astype(np.uint8))
-result.save('transfered.png')
+result.save(args.output)

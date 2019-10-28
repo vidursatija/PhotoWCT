@@ -12,7 +12,7 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 
 ```wget https://download.pytorch.org/models/vgg16-397923af.pth```
 
-3. For every layer(x = 1 to 5) train the decoder. It is recommended to run training twice with starting lr 0.001 and then 0.0001
+3. For every layer(x = 1 to 4) train the decoder. It is recommended to run training twice with starting lr 0.001 and then 0.0001
 
 ```python3 --x <layer number> --batch_size <64> --decoder <saved checkpoint if any> --optimizer <optimized checkpoint if any>```
 
@@ -20,7 +20,7 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 
 4. Run the model on your style and content image
 
-```python3 run_wct.py --x <number of layers to style 1/2/3/4/5> --style <path to style> --content <path to content> --output <output file name> --decoders <comma separated decoder pickle files> [--smooth to smoothen the image]```
+```python3 run_wct.py --x <number of layers to style 1/2/3/4> --style <path to style> --content <path to content> --output <output file name> --decoders <comma separated decoder pickle files> [--smooth to smoothen the image]```
 
 ## Results
 TO BE UPDATED

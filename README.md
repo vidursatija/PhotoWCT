@@ -4,7 +4,7 @@
 Torch implementation of the papers [Universal Style Transfer](https://arxiv.org/pdf/1705.08086.pdf) and [A Closed-form Solution to Photorealistic Image Stylization](https://arxiv.org/abs/1802.06474)
 
 This is an unofficial implementation.
-The original implementation of [Universal Style Transfer](https://github.com/Yijunmaverick/UniversalStyleTransfer) and [A Closed-form Solution to Photorealistic Image Stylization](https://github.com/NVIDIA/FastPhotoStyle) and there <-
+The original implementation of [Universal Style Transfer](https://github.com/Yijunmaverick/UniversalStyleTransfer) and [A Closed-form Solution to Photorealistic Image Stylization](https://github.com/NVIDIA/FastPhotoStyle) are there <-
 
 ## How to get it running
 1. Get the 2017 MS COCO train and validation datasets and unzip them
@@ -20,18 +20,13 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 
 4. Run the model on your style and content image
 
-```python3 run_wct.py --x <number of layers to style 1/2/3/4/5> --style <path to style> --content <path to content> --output <output file name> --decoders <comma separated decoder pickle files>```
-
-5. Smooth out the image using affine matting
-
-**NOTE: Affine Matting mentioned in the latter paper is still in progress**
+```python3 run_wct.py --x <number of layers to style 1/2/3/4/5> --style <path to style> --content <path to content> --output <output file name> --decoders <comma separated decoder pickle files> [--smooth to smoothen the image]```
 
 ## Results
 TO BE UPDATED
 
 ## TODO
-1. Affine Matting
-2. Add results
-3. Upload trained files
-4. Make training easier
-5. Make running easier
+1. Add results
+2. Upload trained files
+3. Make training easier
+4. Make running easier

@@ -92,3 +92,7 @@ new_image = np.maximum(np.minimum(new_image.cpu().detach().numpy(), 1.0), 0.0)
 
 result = Image.fromarray((new_image * 255).astype(np.uint8))
 result.save(args.output)
+
+if args.smoothen:
+    result = mat_transforms.smoothen(args.content, args.output)
+    result.save(args.output)

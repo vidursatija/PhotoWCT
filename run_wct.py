@@ -22,6 +22,7 @@ parser.add_argument('--content', type=str, default=None,
                     help='Content image path')
 parser.add_argument('--output', type=str, default='stylized.png',
                     help='Output image path')
+parser.add_argument('--smooth', help='Whether to apply smoothing')
 
 args = parser.parse_args()
 

@@ -1,6 +1,11 @@
 import numpy as np
-from scipy.signal import convolve2d as c2d
 import torch
+import scipy
+import scipy.misc
+import scipy.sparse
+import scipy.sparse.linalg
+from numpy.lib.stride_tricks import as_strided
+from PIL import Image
 
 def whitening(fc):
     # f = [C, H*W]
@@ -36,93 +41,87 @@ def colouring(fs, fc_hat):
 
     return torch.matmul(mid, fc_hat) + ms
 
-# def toLinear(x, y, w):
-#     return y*w + x
+# The implementation of the function is heavily borrowed from
+# https://github.com/NVIDIA/FastPhotoStyle/blob/master/photo_smooth.py
+"""
+Copyright (C) 2018 NVIDIA Corporation.    All rights reserved.
+Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
+"""
+def smoothen(content_path, stylized_path, lbda=1e-4):
+    beta = 1./(1.+lbda)
+    content = scipy.misc.imread(content_path, mode='RGB')
 
-# def channel_affmat(image):
-#     # image = [H, W]
-#     h, w = image.shape
-#     padded_image = np.pad(image, [(1, 1), (1, 1)], 'reflect') # [2+H+2, 2+W+2]
+    B = scipy.misc.imread(stylized_path, mode='RGB').astype(np.float64)/255
+    h1,w1,k = B.shape
+    h = h1 - 4
+    w = w1 - 4
+    B = B[int((h1-h)/2): int((h1-h)/2+h), int((w1-w)/2): int((w1-w)/2+w), :]
+    content = scipy.misc.imresize(content, (h, w))
+    B = __replication_padding(B, 2)
+    content = __replication_padding(content, 2)
+    content = content.astype(np.float64)/255
+    B = np.reshape(B, (h1*w1, k))
 
-#     W = np.zeros((h*w, h*w))
-#     for i in range(h):
-#         padded_i = i+1
-#         for j in range(w):
-#             padded_j = j+1
-#             center = toLinear(i, j, w)
+    # computing the affinity matrix W as mentioned in the paper    
+    W = __compute_laplacian(content)
+    W = W.tocsc()
+    # computing the dd degree matrix of W
+    dd = W.sum(0)
+    dd = np.sqrt(np.power(dd, -1))
+    dd = dd.A.squeeze()
+    # the degree matrix D
+    D = scipy.sparse.csc_matrix((dd, (np.arange(0, w1*h1), np.arange(0, w1*h1)))) # 0.026
+    # S is the normalized laplacian matrix
+    S = D.dot(W).dot(D)
+    # A = (I - beta*S)
+    A = scipy.sparse.identity(w1*h1) - beta*S
+    A = A.tocsc()
+    # We use this to smartly calculate matmul(A^-1, Y) as mentioned in the paper
+    solver = scipy.sparse.linalg.factorized(A)
+    V = np.zeros((h1*w1, k))
+    V[:,0] = solver(B[:,0])
+    V[:,1] = solver(B[:,1])
+    V[:,2] = solver(B[:,2])
+    V = V*(1-beta)
+    V = V.reshape(h1, w1, k)
+    V = V[2:2+h,2:2+w,:]
+    
+    img = Image.fromarray(np.uint8(np.clip(V * 255., 0, 255.)))
+    return img
 
-#             # 4 connected
-#             if i != h-1:
-#                 W[center, toLinear(i+1, j, w)] = 1
-#                 W[toLinear(i+1, j, w), center] = 1
+# Returns sparse matting laplacian
+# The implementation of the function is heavily borrowed from
+# https://github.com/MarcoForte/closed-form-matting/blob/master/closed_form_matting.py
+# We thank Marco Forte for sharing his code.
+def __compute_laplacian(img, eps=10**(-7), win_rad=1):
+    win_size = (win_rad*2+1)**2
+    h, w, d = img.shape
+    c_h, c_w = h - 2*win_rad, w - 2*win_rad
+    win_diam = win_rad*2+1
+    indsM = np.arange(h*w).reshape((h, w))
+    ravelImg = img.reshape(h*w, d)
+    win_inds = self.__rolling_block(indsM, block=(win_diam, win_diam))
+    win_inds = win_inds.reshape(c_h, c_w, win_size)
+    winI = ravelImg[win_inds]
+    win_mu = np.mean(winI, axis=2, keepdims=True)
+    win_var = np.einsum('...ji,...jk ->...ik', winI, winI)/win_size - np.einsum('...ji,...jk ->...ik', win_mu, win_mu)
+    inv = np.linalg.inv(win_var + (eps/win_size)*np.eye(3))
+    X = np.einsum('...ij,...jk->...ik', winI - win_mu, inv)
+    vals = (1/win_size)*(1 + np.einsum('...ij,...kj->...ik', X, winI - win_mu))
+    nz_indsCol = np.tile(win_inds, win_size).ravel()
+    nz_indsRow = np.repeat(win_inds, win_size).ravel()
+    nz_indsVal = vals.ravel()
+    L = scipy.sparse.coo_matrix((nz_indsVal, (nz_indsRow, nz_indsCol)), shape=(h*w, h*w))
+    return L
 
-#             if i != 0:
-#                 W[center, toLinear(i-1, j, w)] = 1
-#                 W[toLinear(i-1, j, w), center] = 1
+def __replication_padding(arr, pad):
+    h,w,c = arr.shape
+    ans = np.zeros((h+pad*2,w+pad*2,c))
+    for i in range(c):
+            ans[:,:,i] = np.pad(arr[:,:,i],pad_width=(pad,pad),mode='edge')
+    return ans
 
-#             if j != w-1:
-#                 W[center, toLinear(i, j+1, w)] = 1
-#                 W[toLinear(i, j+1, w), center] = 1
-
-#             if j != 0:
-#                 W[center, toLinear(i, j-1, w)] = 1
-#                 W[toLinear(i, j-1, w), center] = 1
-
-#             # 8 connected
-#             if i != h-1 and j != w-1:
-#                 W[center, toLinear(i+1, j+1, w)] = 1
-#                 W[toLinear(i+1, j+1, w), center] = 1
-
-#             if i != 0 and j != w-1:
-#                 W[center, toLinear(i-1, j+1, w)] = 1
-#                 W[toLinear(i-1, j+1, w), center] = 1
-
-#             if i != h-1 and j != 0:
-#                 W[center, toLinear(i+1, j-1, w)] = 1
-#                 W[toLinear(i+1, j-1, w), center] = 1
-
-#             if i != 0 and j != 0:
-#                 W[center, toLinear(i-1, j-1, w)] = 1
-#                 W[toLinear(i-1, j-1, w), center] = 1
-
-            # part = padded_image[i: i+3, j: j+3].reshape([-1])
-            # center = padded_image[i+1, j+1]
-            # sigma = part.stddev()
-            # if i > 0 and i < h-1:
-            #     if j > 0 and j < w-1:
-            #         W[i*w+j, (i-1)*w+j-1] = ((part[0]-center)/sigma)**2
-            #         W[i*w+j, (i-1)*w+j] = ((part[1]-center)/sigma)**2
-            #         W[i*w+j, (i-1)*w+j+1] = ((part[2]-center)/sigma)**2
-
-            #         W[i*w+j, i*w+j-1] = ((part[3]-center)/sigma)**2
-            #         # W[i*w+j, i*w+j] = ((part[4]-center)/sigma)**2
-            #         W[i*w+j, i*w+j+1] = ((part[5]-center)/sigma)**2
-
-            #         W[i*w+j, (i+1)*w+j-1] = ((part[6]-center)/sigma)**2
-            #         W[i*w+j, (i+1)*w+j] = ((part[7]-center)/sigma)**2
-            #         W[i*w+j, (i+1)*w+j+1] = ((part[8]-center)/sigma)**2
-            #     else:
-            #         # think
-            #         pass
-
-    # k = 3
-    # mean_filter = np.ones([k, k])/(k*k)
-
-    # mean_image = c2d(padded_image, mean_filter, mode='valid') # [H, W]
-
-    # # 0 1 2
-    # # 3 4 5
-    # # 6 7 8
-
-    # # ix = [1+H+1, 1+W+1]
-    # i0 = np.abs(padded_image - np.pad(mean_image, [(0, 2), (0, 2)], 'constant'))
-    # i1 = np.abs(padded_image - np.pad(mean_image, [(0, 2), (1, 1)], 'constant'))
-    # i2 = np.abs(padded_image - np.pad(mean_image, [(0, 2), (2, 0)], 'constant'))
-
-    # i3 = np.abs(padded_image - np.pad(mean_image, [(1, 1), (0, 2)], 'constant'))
-    # i4 = np.abs(padded_image - np.pad(mean_image, [(1, 1), (1, 1)], 'constant'))
-    # i5 = np.abs(padded_image - np.pad(mean_image, [(1, 1), (2, 0)], 'constant'))
-
-    # i6 = np.abs(padded_image - np.pad(mean_image, [(2, 0), (0, 2)], 'constant'))
-    # i7 = np.abs(padded_image - np.pad(mean_image, [(2, 0), (1, 1)], 'constant'))
-    # i9 = np.abs(padded_image - np.pad(mean_image, [(2, 0), (2, 0)], 'constant'))
+def __rolling_block(A, block=(3, 3)):
+    shape = (A.shape[0] - block[0] + 1, A.shape[1] - block[1] + 1) + block
+    strides = (A.strides[0], A.strides[1]) + A.strides
+    return as_strided(A, shape=shape, strides=strides)

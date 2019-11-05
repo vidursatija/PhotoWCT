@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import scipy
 import scipy.misc
+import imageio
 import scipy.sparse
 import scipy.sparse.linalg
 from numpy.lib.stride_tricks import as_strided
@@ -49,14 +50,14 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 def smoothen(content_path, stylized_path, lbda=1e-4):
     beta = 1./(1.+lbda)
-    content = scipy.misc.imread(content_path, mode='RGB')
+    content = imageio.imread(content_path, pilmode='RGB')
 
-    B = scipy.misc.imread(stylized_path, mode='RGB').astype(np.float64)/255
+    B = imageio.imread(stylized_path, pilmode='RGB').astype(np.float64)/255
     h1,w1,k = B.shape
     h = h1 - 4
     w = w1 - 4
     B = B[int((h1-h)/2): int((h1-h)/2+h), int((w1-w)/2): int((w1-w)/2+w), :]
-    content = scipy.misc.imresize(content, (h, w))
+    content = np.array(Image.fromarray(content).resize([h, w]))  # scipy.misc.imresize(content, (h, w))
     B = __replication_padding(B, 2)
     content = __replication_padding(content, 2)
     content = content.astype(np.float64)/255
@@ -100,7 +101,7 @@ def __compute_laplacian(img, eps=10**(-7), win_rad=1):
     win_diam = win_rad*2+1
     indsM = np.arange(h*w).reshape((h, w))
     ravelImg = img.reshape(h*w, d)
-    win_inds = self.__rolling_block(indsM, block=(win_diam, win_diam))
+    win_inds = __rolling_block(indsM, block=(win_diam, win_diam))
     win_inds = win_inds.reshape(c_h, c_w, win_size)
     winI = ravelImg[win_inds]
     win_mu = np.mean(winI, axis=2, keepdims=True)

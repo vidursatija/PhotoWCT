@@ -12,7 +12,7 @@ import mat_transforms
 import argparse
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--decoders', type=str, default=None,
+parser.add_argument('--decoder', type=str, default=None,
                     help='Decoder path')
 parser.add_argument('--x', type=int, default=2,
                     help='Num layers to transform')
@@ -28,11 +28,15 @@ args = parser.parse_args()
 
 
 def image_loader(loader, image_name):
-    image = Image.open(image_name)
-    image = loader(image).float()
-    image = torch.tensor(image, requires_grad=True)
-    image = image.unsqueeze(0)
-    return image
+    img = Image.open(image_name)
+    h, w, c = np.array(img).shape
+    h = (h//8)*8
+    w = (w//8)*8
+    img = Image.fromarray(np.array(img)[:h, :w])
+    img = loader(img).float()
+    img = img.clone().detach() # torch.tensor(image, requires_grad=True)
+    img = img.unsqueeze(0)
+    return img
 
 
 transform = transforms.Compose([
@@ -75,7 +79,7 @@ for j in range(args.x, 0, -1):
     white_content = mat_transforms.whitening(z_content) # (C, HW)
     color_content = mat_transforms.colouring(z_style, white_content) # (C, HW)
 
-    alpha = 0.6
+    alpha = 0.8
     color_content = alpha*color_content + (1.-alpha)*z_content
 
     color_content = color_content.view([1, n_channels, n_1, n_2]) # (1, C, H, W)
@@ -93,6 +97,6 @@ new_image = np.maximum(np.minimum(new_image.cpu().detach().numpy(), 1.0), 0.0)
 result = Image.fromarray((new_image * 255).astype(np.uint8))
 result.save(args.output)
 
-if args.smoothen:
+if args.smooth:
     result = mat_transforms.smoothen(args.content, args.output)
-    result.save(args.output)
+    result.save(args.output+"_smooth.png")

@@ -21,11 +21,10 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 ## Results
 Clockwise from top left: image, style, whitening+coloring, whitening+coloring+smoothing
 
-1. ![Style Transfer on Golden Gate bridge](./golden_github.jpg)
-2. ![Style Transfer on an MIT building](./mit1_github.jpg)
-3. ![Style Transfer on another MIT building](./mit2_github.jpg)
+![Style Transfer on Golden Gate bridge](./golden_github.jpg)
+![Style Transfer on an MIT building](./mit1_github.jpg)
+![Style Transfer on another MIT building](./mit2_github.jpg)
 
 ## TODO
-1. Upload trained files
-2. Make training easier
-3. Make running easier
+1. Make training easier
+2. Make running easier

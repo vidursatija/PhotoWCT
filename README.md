@@ -19,7 +19,11 @@ The original implementation of [Universal Style Transfer](https://github.com/Yij
 *Note: all decoders & optimizers are saved in the dir `decoder_<x>`*
 
 ## Results
-TO BE UPDATED
+Clockwise from top left: image, style, whitening+coloring, whitening+coloring+smoothing
+
+1. ![Style Transfer on Golden Gate bridge](./golden_github.jpg)
+2. ![Style Transfer on an MIT building](./mit1_github.jpg)
+3. ![Style Transfer on another MIT building](./mit2_github.jpg)
 
 ## TODO
 1. Upload trained files
